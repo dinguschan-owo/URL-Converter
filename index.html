@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data URL Converter</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #202327;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #2d3339;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            color: #fff;
+            border: 5.5px;
+            border-style: solid;
+            border-color: #4f5964;
+            overflow-y: hidden;
+            overflow-x: hidden;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            display: flex;
+            width: 180px;
+            position: absolute;
+            top: 50px;
+            margin-left: 5px;
+            border-radius: 15px;
+        }
+        .dropdown-container {
+            display: flex;
+            gap: 10px;
+            width: 180px;
+            position: absolute;
+            top: 0px;
+            right: 292px;
+            border-radius: 15px;
+        }
+        select, input[type="file"], textarea, button {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-family: monospace;
+        }
+        select {
+            flex: 1;
+        }
+        textarea {
+            border: 3px solid #4f5963;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: 'Roboto', sans-serif;
+            color: #fff;
+            background-color: #394047;
+            resize: none;
+            width: 96%;
+            height: 160px;
+        }
+        button {
+            padding: 18px 10px;
+            margin: 5px;
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 11px;
+            background-color: #3b8ea5;
+            color: #f0f0f0;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #41a3be;
+        }
+        #imagePreview {
+            display: none;
+            margin-bottom: 20px;
+            max-width: 100%;
+            height: auto;
+        }
+        .hidden {
+            display: none;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+        h1 {
+            margin-top: 0px;
+        }
+        ::placeholder {
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>dinguschan's Converter</h1>
+
+        <div class="form-group">
+            <select id="conversionType" onchange="toggleInputArea()">
+                <option value="rawHtml">Raw HTML Code</option>
+                <option value="githubLink">Raw GitHub Link</option>
+                <option value="websiteSource">Website Link</option>
+                <option value="uploadImage">Upload an Image</option>
+                <option value="uploadTextFile">Upload a .txt File</option>
+            </select>
+        </div>
+
+        <div class="dropdown-container">
+            <div class="form-group">
+                <select id="outputType">
+                    <option value="dataUrl">Data URL</option>
+                    <option value="blobUrl">Blob URL</option>
+                </select>
+            </div>
+        </div>
+
+        <textarea id="inputArea" placeholder="Enter your media format here"></textarea>
+        <input type="file" id="fileInput" class="hidden" accept="image/*,text/*" onchange="handleFile()">
+        <img id="imagePreview" src="" alt="Image Preview" class="hidden">
+
+        <div class="actions">
+            <button onclick="convertToUrl()">Generate URL</button>
+            <button onclick="copyToClipboard()">Copy to Clipboard</button>
+            <button onclick="clearFields()">Clear</button>
+        </div>
+        <textarea id="resultOutput" placeholder="Your converted data:/blob: URL will appear here" readonly ></textarea>
+    </div>
+
+    <script>
+        let corsProxies = [
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://api.codetabs.com/v1/tmp/?quest='
+        ];
+        let currentProxyIndex = 0;
+
+        function toggleInputArea() {
+            const conversionType = document.getElementById('conversionType').value;
+            const inputArea = document.getElementById('inputArea');
+            const fileInput = document.getElementById('fileInput');
+            const imagePreview = document.getElementById('imagePreview');
+            
+            if (conversionType === 'uploadImage' || conversionType === 'uploadTextFile') {
+                inputArea.style.display = 'none';
+                fileInput.style.display = 'block';
+                imagePreview.classList.toggle('hidden', conversionType !== 'uploadImage');
+            } else {
+                inputArea.style.display = 'block';
+                fileInput.style.display = 'none';
+                imagePreview.classList.add('hidden');
+            }
+        }
+
+        function handleFile() {
+            const conversionType = document.getElementById('conversionType').value;
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (file) {
+                const reader = new FileReader();
+
+                if (conversionType === 'uploadImage') {
+                    reader.onload = function(e) {
+                        const imagePreview = document.getElementById('imagePreview');
+                        imagePreview.src = e.target.result;
+                        imagePreview.classList.remove('hidden');
+                        document.getElementById('resultOutput').value = convertToBlobUrl(e.target.result);
+                    }
+                    reader.readAsDataURL(file);
+                } else if (conversionType === 'uploadTextFile') {
+                    reader.onload = function(e) {
+                        const textContent = e.target.result;
+                        const base64EncodedText = btoa(unescape(encodeURIComponent(textContent)));
+                        document.getElementById('resultOutput').value = convertToBlobUrl('data:text/plain;base64,' + base64EncodedText);
+                    }
+                    reader.readAsText(file);
+                }
+            }
+        }
+
+        function convertToUrl() {
+            const conversionType = document.getElementById('conversionType').value;
+            const outputType = document.getElementById('outputType').value;
+
+            if (conversionType === 'rawHtml') {
+                convertRawHtmlToUrl(outputType);
+            } else if (conversionType === 'githubLink' || conversionType === 'websiteSource') {
+                fetchAndConvertUrl(outputType);
+            }
+        }
+
+        function convertRawHtmlToUrl(outputType) {
+            const htmlInput = document.getElementById('inputArea').value;
+            const base64EncodedHTML = btoa(unescape(encodeURIComponent(htmlInput)));
+            const dataUrl = 'data:text/html;base64,' + base64EncodedHTML;
+            document.getElementById('resultOutput').value = convertOutput(dataUrl, outputType);
+        }
+
+        function fetchAndConvertUrl(outputType) {
+            const url = document.getElementById('inputArea').value.trim();
+            const proxyUrl = corsProxies[currentProxyIndex];
+
+            fetch(proxyUrl + url)
+                .then(response => response.text())
+                .then(html => {
+                    const base64EncodedHTML = btoa(unescape(encodeURIComponent(html)));
+                    const dataUrl = 'data:text/html;base64,' + base64EncodedHTML;
+                    document.getElementById('resultOutput').value = convertOutput(dataUrl, outputType);
+                })
+                .catch(error => {
+                    alert('Error fetching content: ' + error);
+                });
+
+            currentProxyIndex = (currentProxyIndex + 1) % corsProxies.length;
+        }
+
+        function convertOutput(dataUrl, outputType) {
+            if (outputType === 'blobUrl') {
+                return convertToBlobUrl(dataUrl);
+            } else {
+                return dataUrl;
+            }
+        }
+
+        function convertToBlobUrl(dataUrl) {
+            const blob = dataUrlToBlob(dataUrl);
+            const blobUrl = URL.createObjectURL(blob);
+            return blobUrl;
+        }
+
+        function dataUrlToBlob(dataUrl) {
+            const parts = dataUrl.split(',');
+            const mime = parts[0].match(/:(.*?);/)[1];
+            const data = atob(parts[1]);
+            const array = [];
+            for (let i = 0; i < data.length; i++) {
+                array.push(data.charCodeAt(i));
+            }
+            return new Blob([new Uint8Array(array)], { type: mime });
+        }
+
+        function copyToClipboard() {
+            const resultOutput = document.getElementById('resultOutput');
+            resultOutput.select();
+            document.execCommand('copy');
+            alert('Result copied to clipboard!');
+        }
+
+        function clearFields() {
+            document.getElementById('inputArea').value = '';
+            document.getElementById('resultOutput').value = '';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('imagePreview').src = '';
+            document.getElementById('imagePreview').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
